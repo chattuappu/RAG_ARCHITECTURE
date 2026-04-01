@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HR Policy Chatbot</title>
+    <!-- Use Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>💬 Knowledge Base</h2>
+                <p>This chatbot uses your documents stored in Google Cloud Storage.</p>
+            </div>
+            
+            <div class="sidebar-content">
+                <h3>Try these questions:</h3>
+                <div class="sample-questions" id="sample-questions">
+                    <button class="sample-btn">Explain about the security policy</button>
+                    <button class="sample-btn">what are mandatory dress code t obe followed?</button>
+                    <button class="sample-btn">How to apply for leave?</button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="main-header">
+                <h1>Enterprise RAG Chatbot</h1>
+                <p>Ask questions based on your Google Cloud Storage documents.</p>
+            </header>
+
+            <div class="chat-container" id="chat-container">
+                <!-- Chat messages will be appended here -->
+            </div>
+
+            <div class="input-container">
+                <div class="input-wrapper">
+                    <textarea 
+                        id="chat-input" 
+                        placeholder="Ask a question about your documents..." 
+                        rows="1" 
+                        oninput="this.style.height = '';this.style.height = Math.min(this.scrollHeight, 150) + 'px'"></textarea>
+                    <button id="send-btn" class="send-btn" aria-label="Send">
+                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M22 2L11 13M22 2L15 22L11 13M11 13L2 9L22 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Marked JS for parsing Markdown -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="/static/script.js"></script>
+</body>
+</html>
