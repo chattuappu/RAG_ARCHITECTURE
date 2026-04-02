@@ -47,9 +47,10 @@ def get_ui_sources(source_docs):
         key = f"{raw_source}_{page}"
         if key not in unique_sources:
             base_name = os.path.basename(raw_source.rstrip("/")) or raw_source
+            display_name = f"{base_name} [{page}]" if page else base_name
             url = get_gcs_url(raw_source, page=page)
             unique_sources[key] = {
-                "name": base_name,
+                "name": display_name,
                 "url": url
             }
             
