@@ -3,6 +3,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const chatInput = document.getElementById('chat-input');
     const sendBtn = document.getElementById('send-btn');
     const sampleBtns = document.querySelectorAll('.sample-btn');
+    const sidebar = document.querySelector('.sidebar');
+    const appContainer = document.querySelector('.app-container');
+    const sidebarToggleBtn = document.getElementById('sidebar-toggle-btn');
 
     // Configure marked to use breaks for better text wrapping, and sanitize if needed
     marked.use({
@@ -268,4 +271,20 @@ document.addEventListener('DOMContentLoaded', () => {
             handleSend(btn.innerText);
         });
     });
+
+    // Sidebar toggle
+    if (sidebar && sidebarToggleBtn && appContainer) {
+        const collapseIcon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        const expandIcon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9 18L15 12L9 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+        sidebarToggleBtn.addEventListener('click', () => {
+            const isCollapsed = sidebar.classList.toggle('collapsed');
+            appContainer.classList.toggle('sidebar-collapsed', isCollapsed);
+            sidebarToggleBtn.innerHTML = isCollapsed ? expandIcon : collapseIcon;
+            sidebarToggleBtn.setAttribute('aria-expanded', String(!isCollapsed));
+        });
+
+        // Initialize icon
+        sidebarToggleBtn.innerHTML = collapseIcon;
+    }
 });
