@@ -20,26 +20,28 @@ def get_chroma_db():
         embedding_function=embeddings
     )
 
-def extract_text_from_bytes(file_bytes_io, file_name):
+def extract_docs_from_bytes(file_bytes_io, file_name):
     """
     Extract text directly from memory. Handled formats: PDF, TXT.
-    Returns a unified string of text.
+    Returns a list of Document objects.
     """
-    text = ""
+    docs = []
     if file_name.lower().endswith('.pdf'):
         try:
             reader = PyPDF2.PdfReader(file_bytes_io)
-            for page in reader.pages:
+            for i, page in enumerate(reader.pages):
                 page_text = page.extract_text()
-                if page_text:
-                    text += page_text + "\n"
+                if page_text and page_text.strip():
+                    docs.append(Document(page_content=page_text, metadata={"source": file_name, "page": i + 1}))
         except Exception as e:
             print(f"Error parsing PDF {file_name}: {e}")
     elif file_name.lower().endswith('.txt'):
         text = file_bytes_io.read().decode('utf-8', errors='ignore')
+        if text.strip():
+            docs.append(Document(page_content=text, metadata={"source": file_name}))
     else:
         print(f"Unsupported file format for ingestion: {file_name}. Continuing...")
-    return text
+    return docs
 
 def ingest_new_documents():
     """
@@ -73,11 +75,8 @@ def ingest_new_documents():
         print(f"Loading {file_name} directly from GCS to memory...")
         try:
             file_stream = get_gcs_file_in_memory(file_name)
-            text = extract_text_from_bytes(file_stream, file_name)
-            
-            if text.strip():
-                doc = Document(page_content=text, metadata={"source": file_name})
-                docs_to_embed.append(doc)
+            docs = extract_docs_from_bytes(file_stream, file_name)
+            docs_to_embed.extend(docs)
         except Exception as e:
             print(f"Error processing {file_name}: {e}")
             

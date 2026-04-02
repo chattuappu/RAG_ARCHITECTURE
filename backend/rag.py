@@ -11,6 +11,7 @@ from langchain_core.callbacks.base import BaseCallbackHandler
 
 from .config import OPENROUTER_API_KEY
 from .ingestion import get_chroma_db, ingest_new_documents
+from .gcs_manager import get_gcs_url
 import os
 
 class StreamingCallbackHandler(BaseCallbackHandler):
@@ -33,12 +34,26 @@ class StreamingCallbackHandler(BaseCallbackHandler):
         self.token_queue.put(("end", None))
 
 
-def normalize_source(raw_source):
-    if not raw_source:
-        return "Unknown Source"
-    raw_source = raw_source.rstrip("/")
-    base = os.path.basename(raw_source)
-    return base if base else raw_source
+def get_ui_sources(source_docs):
+    unique_sources = {}
+    for doc in source_docs:
+        raw_source = doc.metadata.get("source", "")
+        page = doc.metadata.get("page", None)
+        
+        if not raw_source:
+             continue
+             
+        # Unique identifier for the source item
+        key = f"{raw_source}_{page}"
+        if key not in unique_sources:
+            base_name = os.path.basename(raw_source.rstrip("/")) or raw_source
+            url = get_gcs_url(raw_source, page=page)
+            unique_sources[key] = {
+                "name": base_name,
+                "url": url
+            }
+            
+    return list(unique_sources.values())
 
 def get_llm():
     return ChatOpenAI(
@@ -114,10 +129,7 @@ def query_rag(query_text, first_query=False):
             return "I am a HR Policy Chatbot, please ask relevant question regarding policies", [], timestamp
         
         source_docs = [doc for doc, score in docs_and_scores]
-        sources = {
-            normalize_source(doc.metadata.get("source", "Unknown Source"))
-            for doc in source_docs
-        }
+        sources = get_ui_sources(source_docs)
         
         # Format context
         context = "\n\n".join(doc.page_content for doc in source_docs)
@@ -143,7 +155,7 @@ def query_rag(query_text, first_query=False):
         
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
-        return answer, list(sources), timestamp
+        return answer, sources, timestamp
     
     except Exception as e:
         print(f"Error in query_rag: {e}")
@@ -180,10 +192,7 @@ def stream_rag(query_text, first_query=False):
                 return
 
             source_docs = [doc for doc, score in docs_and_scores]
-            sources = {
-                normalize_source(doc.metadata.get("source", "Unknown Source"))
-                for doc in source_docs
-            }
+            sources = get_ui_sources(source_docs)
 
             context = "\n\n".join(doc.page_content for doc in source_docs)
 
@@ -237,7 +246,7 @@ def stream_rag(query_text, first_query=False):
                     elif msg_type == "end":
                         # Emit finalization event with sources/timestamp
                         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        yield json.dumps({"type": "done", "sources": list(sources), "timestamp": timestamp}) + "\n"
+                        yield json.dumps({"type": "done", "sources": sources, "timestamp": timestamp}) + "\n"
                         break
                 
                 except queue.Empty:

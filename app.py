@@ -26,7 +26,7 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     answer: str
-    sources: list[str]
+    sources: list[dict]
     timestamp: str
 
 # API Endpoints

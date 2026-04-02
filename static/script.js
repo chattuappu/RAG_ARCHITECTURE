@@ -30,7 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const avatarDiv = document.createElement('div');
         avatarDiv.className = `avatar ${role}`;
         avatarDiv.innerText = role === 'user' ? 'U' : '💬';
-        
+
         // Content container
         const contentContainer = document.createElement('div');
         contentContainer.className = 'message-content';
@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const markdownDiv = document.createElement('div');
         if (role === 'user') {
             // For user inputs, just show as text to avoid markdown injection
-            markdownDiv.textContent = content; 
+            markdownDiv.textContent = content;
             contentContainer.appendChild(markdownDiv);
         } else {
             // Parse Markdown for assistant
@@ -62,7 +62,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (sources.length > 0) {
                     sources.forEach(src => {
                         const li = document.createElement('li');
-                        li.innerText = src;
+                        const a = document.createElement('a');
+                        a.href = src.url;
+                        a.textContent = src.name;
+                        a.target = '_blank';
+                        a.rel = 'noopener noreferrer';
+                        li.appendChild(a);
                         ul.appendChild(li);
                     });
                 } else {
@@ -94,22 +99,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const messageDiv = document.createElement('div');
         messageDiv.className = `message assistant typing`;
         messageDiv.id = 'typing-indicator-wrapper';
-        
+
         const avatarDiv = document.createElement('div');
         avatarDiv.className = `avatar assistant`;
         avatarDiv.innerText = '💬';
-        
+
         const contentContainer = document.createElement('div');
         contentContainer.className = 'message-content';
-        
+
         const indicator = document.createElement('div');
         indicator.className = 'typing-indicator';
         indicator.innerHTML = '<span></span><span></span><span></span>';
-        
+
         contentContainer.appendChild(indicator);
         messageDiv.appendChild(avatarDiv);
         messageDiv.appendChild(contentContainer);
-        
+
         chatContainer.appendChild(messageDiv);
         scrollToBottom();
     };
@@ -121,11 +126,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const handleSend = async (queryText) => {
         if (!queryText.trim() || isWaitingForResponse) return;
-        
+
         // Reset input immediately
         chatInput.value = '';
         chatInput.style.height = '';
-        
+
         // Disable inputs and show send-button loading state
         isWaitingForResponse = true;
         sendBtn.disabled = true;
@@ -139,7 +144,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let assistantMessageDiv = null;
         let assistantContentDiv = null;
         let assembledAnswer = '';
-        
+
         try {
             const response = await fetch('/api/chat/stream', {
                 method: 'POST',
@@ -192,7 +197,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             assistantMessageDiv = addMessage('assistant', '');
                             assistantContentDiv = assistantMessageDiv.querySelector('.message-content > div');
                         }
-                        
+
                         assembledAnswer += payload.text;
                         assistantContentDiv.innerHTML = marked.parse(assembledAnswer);
                         scrollToBottom();
@@ -211,7 +216,12 @@ document.addEventListener('DOMContentLoaded', () => {
                             ul.className = 'sources-list';
                             payload.sources.forEach(src => {
                                 const li = document.createElement('li');
-                                li.innerText = src;
+                                const a = document.createElement('a');
+                                a.href = src.url;
+                                a.textContent = src.name;
+                                a.target = '_blank';
+                                a.rel = 'noopener noreferrer';
+                                li.appendChild(a);
                                 ul.appendChild(li);
                             });
                             sourcesDiv.appendChild(ul);
