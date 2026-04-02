@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME")
 
 # The path to the Service Account JSON key is expected to be in GOOGLE_APPLICATION_CREDENTIALS
@@ -15,8 +15,8 @@ CHROMA_PERSIST_DIRECTORY = "./chroma_db"
 
 def validate_config():
     missing_keys = []
-    if not GOOGLE_API_KEY:
-        missing_keys.append("GOOGLE_API_KEY")
+    if not OPENROUTER_API_KEY:
+        missing_keys.append("OPENROUTER_API_KEY")
     if not GCS_BUCKET_NAME:
         missing_keys.append("GCS_BUCKET_NAME")
     

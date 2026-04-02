@@ -5,7 +5,7 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 
-from .config import GOOGLE_API_KEY, CHROMA_PERSIST_DIRECTORY
+from .config import CHROMA_PERSIST_DIRECTORY
 from .gcs_manager import list_gcs_files, get_gcs_file_in_memory
 
 def get_embeddings_model():

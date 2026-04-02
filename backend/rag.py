@@ -2,14 +2,14 @@ import datetime
 import json
 import queue
 import threading
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.callbacks.base import BaseCallbackHandler
 
-from .config import GOOGLE_API_KEY
+from .config import OPENROUTER_API_KEY
 from .ingestion import get_chroma_db, ingest_new_documents
 import os
 
@@ -41,9 +41,10 @@ def normalize_source(raw_source):
     return base if base else raw_source
 
 def get_llm():
-    return ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash",
-        google_api_key=GOOGLE_API_KEY,
+    return ChatOpenAI(
+        model="openrouter/auto",
+        api_key=OPENROUTER_API_KEY,
+        base_url="https://openrouter.ai/api/v1",
         temperature=0.0
     )
 
