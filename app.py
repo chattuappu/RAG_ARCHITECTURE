@@ -5,6 +5,10 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import uvicorn
+import base64
+import mimetypes
+from fastapi import Query
+from backend.gcs_manager import get_gcs_file_in_memory
 
 # We must import validate_config to ensure environment is setup, but we do it gracefully
 try:
@@ -91,6 +95,28 @@ async def chat_stream_endpoint(request: ChatRequest):
         def error_response():
             yield json.dumps({"type": "error", "message": "Internal server error"}) + "\n"
         return StreamingResponse(error_response(), media_type="text/event-stream")
+
+@app.get("/api/document")
+async def serve_document(c: str = Query(...)):
+    try:
+        file_path = base64.b64decode(c).decode('utf-8')
+        file_stream = get_gcs_file_in_memory(file_path)
+        
+        # Determine mime type
+        mime_type, _ = mimetypes.guess_type(file_path)
+        if not mime_type:
+            mime_type = "application/octet-stream"
+            
+        file_stream.seek(0)
+        
+        return StreamingResponse(
+            file_stream, 
+            media_type=mime_type, 
+            headers={"Content-Disposition": f"inline; filename=\"{os.path.basename(file_path)}\""}
+        )
+    except Exception as e:
+        print(f"Error serving document: {e}")
+        raise HTTPException(status_code=404, detail="Document not found or inaccessible")
 
 # Mount static files
 static_dir = os.path.join(os.path.dirname(__file__), "static")

@@ -11,8 +11,9 @@ from langchain_core.callbacks.base import BaseCallbackHandler
 
 from .config import OPENROUTER_API_KEY
 from .ingestion import get_chroma_db, ingest_new_documents
-from .gcs_manager import get_gcs_url
 import os
+import base64
+import urllib.parse
 
 class StreamingCallbackHandler(BaseCallbackHandler):
     """Callback handler that captures tokens via queue for real-time streaming."""
@@ -48,7 +49,11 @@ def get_ui_sources(source_docs):
         if key not in unique_sources:
             base_name = os.path.basename(raw_source.rstrip("/")) or raw_source
             display_name = f"{base_name} [{page}]" if page else base_name
-            url = get_gcs_url(raw_source, page=page)
+            # Encode file path to obscure the real structure
+            encoded_file = base64.b64encode(raw_source.encode('utf-8')).decode('utf-8')
+            url = f"/api/document?c={encoded_file}"
+            if page:
+                url += f"#page={page}"
             unique_sources[key] = {
                 "name": display_name,
                 "url": url
