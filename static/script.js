@@ -147,7 +147,16 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             if (!response.ok) {
-                throw new Error(`Server returned ${response.status}`);
+                // Get error details from response body for logging
+                let errorDetail = `Server returned ${response.status}`;
+                try {
+                    const errorData = await response.json();
+                    errorDetail = errorData.detail || errorData.message || errorDetail;
+                    console.error('API Error:', errorData);
+                } catch (e) {
+                    console.error('API Error:', errorDetail);
+                }
+                throw new Error(errorDetail);
             }
 
             const reader = response.body.getReader();
@@ -225,12 +234,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
         } catch (error) {
-            console.error('Streaming API Error:', error);
+            console.error('API Error:', error);
             removeTypingIndicator();
+            const userFriendlyMessage = "Chatbot is facing some issues for now. Please try again later.";
             if (assistantMessageDiv) {
-                assistantContentDiv.innerText = `An error occurred: ${error.message}. Please verify the backend is running and reachable.`;
+                assistantContentDiv.innerText = userFriendlyMessage;
             } else {
-                addMessage('assistant', `An error occurred: ${error.message}. Please verify the backend is running and reachable.`);
+                addMessage('assistant', userFriendlyMessage);
             }
         } finally {
             isWaitingForResponse = false;

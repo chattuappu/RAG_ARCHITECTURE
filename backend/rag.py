@@ -89,122 +89,150 @@ def query_rag(query_text, first_query=False):
         answer (str): The generated answer from the LLM.
         sources (list): A list of unique source document names used for the answer.
         timestamp (str): The formatted timestamp when the answer was generated.
+    Raises:
+        Exception: If any error occurs during query execution.
     """
-    if first_query:
-        print("First query of the session, checking for new documents in GCS...")
-        ingest_new_documents()
+    try:
+        if first_query:
+            print("First query of the session, checking for new documents in GCS...")
+            try:
+                ingest_new_documents()
+            except Exception as e:
+                print(f"Warning: Document ingestion failed: {e}")
+                # Continue with query even if ingestion fails
         
-    db = get_chroma_db()
-    retriever = db.as_retriever(search_kwargs={"k": 2})
-    
-    # Retrieve documents for sources
-    source_docs = retriever.invoke(query_text)
-    # sources = set([doc.metadata.get("source", "Unknown Source") for doc in source_docs])
-    sources = {
-    normalize_source(doc.metadata.get("source", "Unknown Source"))
-    for doc in source_docs
-    }
-    
-    # Format context
-    context = "\n\n".join(doc.page_content for doc in source_docs)
-    
-    llm = get_llm()
-    
-    system_prompt = (
-        "You are a helpful and accurate assistant for answering questions based on the provided documents. "
-        "Use the following pieces of retrieved context to answer the user's question. "
-        "If the answer cannot be found in the context, say that you don't know or cannot answer based on the provided sources. "
-        "Keep the answer clear, concise, and professional.\n\n"
-        "Context:\n{context}"
-    )
+        db = get_chroma_db()
+        retriever = db.as_retriever(search_kwargs={"k": 2})
+        
+        # Retrieve documents for sources
+        source_docs = retriever.invoke(query_text)
+        sources = {
+            normalize_source(doc.metadata.get("source", "Unknown Source"))
+            for doc in source_docs
+        }
+        
+        # Format context
+        context = "\n\n".join(doc.page_content for doc in source_docs)
+        
+        llm = get_llm()
+        
+        system_prompt = (
+            "You are a helpful and accurate assistant for answering questions based on the provided documents. "
+            "Use the following pieces of retrieved context to answer the user's question. "
+            "If the answer cannot be found in the context, say that you don't know or cannot answer based on the provided sources. "
+            "Keep the answer clear, concise, and professional.\n\n"
+            "Context:\n{context}"
+        )
 
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", system_prompt),
-        ("human", "{input}"),
-    ])
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", system_prompt),
+            ("human", "{input}"),
+        ])
 
-    # LCEL chain for answering
-    chain = prompt | llm | StrOutputParser()
-    answer = chain.invoke({"context": context, "input": query_text})
+        # LCEL chain for answering
+        chain = prompt | llm | StrOutputParser()
+        answer = chain.invoke({"context": context, "input": query_text})
+        
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        return answer, list(sources), timestamp
     
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    
-    return answer, list(sources), timestamp
+    except Exception as e:
+        print(f"Error in query_rag: {e}")
+        raise
 
 
 def stream_rag(query_text, first_query=False):
     """Stream the answer from the LLM token by token using callbacks for immediate token delivery."""
-    if first_query:
-        print("First query of the session, checking for new documents in GCS...")
-        ingest_new_documents()
-
-    db = get_chroma_db()
-    retriever = db.as_retriever(search_kwargs={"k": 2})
-
-    source_docs = retriever.invoke(query_text)
-    sources = {
-        normalize_source(doc.metadata.get("source", "Unknown Source"))
-        for doc in source_docs
-    }
-
-    context = "\n\n".join(doc.page_content for doc in source_docs)
-
-    llm = get_llm()
-
-    system_prompt = (
-        "You are a helpful and accurate assistant for answering questions based on the provided documents. "
-        "Use the following pieces of retrieved context to answer the user's question. "
-        "If the answer cannot be found in the context, say that you don't know or cannot answer based on the provided sources. "
-        "Keep the answer clear, concise, and professional.\n\n"
-        "Context:\n{context}"
-    )
-
-    system_message = SystemMessage(content=system_prompt.format(context=context))
-    human_message = HumanMessage(content=query_text)
-
-    # Create queue and callback for real-time token streaming
     token_queue = queue.Queue()
-    callback_handler = StreamingCallbackHandler(token_queue)
-
-    # Run LLM generation in a background thread
-    def generate_in_thread():
-        try:
-            # Use stream() to trigger token callbacks, not invoke()
-            for chunk in llm.stream(
-                [system_message, human_message],
-                config={"callbacks": [callback_handler]}
-            ):
-                # Tokens are being captured via callback handler
-                pass
-        except Exception as e:
-            token_queue.put(("error", str(e)))
-
-    thread = threading.Thread(target=generate_in_thread, daemon=True)
-    thread.start()
-
-    # Yield tokens as they arrive from the queue
-    while True:
-        try:
-            msg_type, content = token_queue.get(timeout=60)
-            
-            if msg_type == "token":
-                yield json.dumps({"type": "token", "text": content}) + "\n"
-            
-            elif msg_type == "error":
-                yield json.dumps({"type": "error", "message": content}) + "\n"
-                break
-            
-            elif msg_type == "end":
-                # Emit finalization event with sources/timestamp
-                timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                yield json.dumps({"type": "done", "sources": list(sources), "timestamp": timestamp}) + "\n"
-                break
-        
-        except queue.Empty:
-            # Timeout: LLM took too long
-            yield json.dumps({"type": "error", "message": "LLM generation timeout"}) + "\n"
-            break
     
-    # Ensure thread completes
-    thread.join(timeout=5)
+    def stream_generator():
+        try:
+            if first_query:
+                print("First query of the session, checking for new documents in GCS...")
+                try:
+                    ingest_new_documents()
+                except Exception as e:
+                    print(f"Warning: Document ingestion failed: {e}")
+                    # Continue with query even if ingestion fails
+
+            db = get_chroma_db()
+            retriever = db.as_retriever(search_kwargs={"k": 2})
+
+            source_docs = retriever.invoke(query_text)
+            sources = {
+                normalize_source(doc.metadata.get("source", "Unknown Source"))
+                for doc in source_docs
+            }
+
+            context = "\n\n".join(doc.page_content for doc in source_docs)
+
+            llm = get_llm()
+
+            system_prompt = (
+                "You are a helpful and accurate assistant for answering questions based on the provided documents. "
+                "Use the following pieces of retrieved context to answer the user's question. "
+                "If the answer cannot be found in the context, say that you don't know or cannot answer based on the provided sources. "
+                "Keep the answer clear, concise, and professional.\n\n"
+                "Context:\n{context}"
+            )
+
+            system_message = SystemMessage(content=system_prompt.format(context=context))
+            human_message = HumanMessage(content=query_text)
+
+            # Create callback for real-time token streaming
+            callback_handler = StreamingCallbackHandler(token_queue)
+
+            # Run LLM generation in a background thread
+            def generate_in_thread():
+                try:
+                    # Use stream() to trigger token callbacks, not invoke()
+                    for chunk in llm.stream(
+                        [system_message, human_message],
+                        config={"callbacks": [callback_handler]}
+                    ):
+                        # Tokens are being captured via callback handler
+                        pass
+                except Exception as e:
+                    print(f"Error in LLM stream: {e}")
+                    token_queue.put(("error", str(e)))
+
+            thread = threading.Thread(target=generate_in_thread, daemon=True)
+            thread.start()
+
+            # Yield tokens as they arrive from the queue
+            while True:
+                try:
+                    msg_type, content = token_queue.get(timeout=60)
+                    
+                    if msg_type == "token":
+                        yield json.dumps({"type": "token", "text": content}) + "\n"
+                    
+                    elif msg_type == "error":
+                        # Log full error for debugging, but send generic message to frontend
+                        print(f"LLM Error (masked from user): {content}")
+                        yield json.dumps({"type": "error", "message": "Service error occurred"}) + "\n"
+                        break
+                    
+                    elif msg_type == "end":
+                        # Emit finalization event with sources/timestamp
+                        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        yield json.dumps({"type": "done", "sources": list(sources), "timestamp": timestamp}) + "\n"
+                        break
+                
+                except queue.Empty:
+                    # Timeout: LLM took too long
+                    print("Error: LLM generation timeout")
+                    yield json.dumps({"type": "error", "message": "Service error occurred"}) + "\n"
+                    break
+            
+            # Ensure thread completes
+            thread.join(timeout=5)
+        
+        except Exception as e:
+            # Log full error for debugging, but send generic message to frontend
+            print(f"Stream RAG error (masked from user): {e}")
+            yield json.dumps({"type": "error", "message": "Service error occurred"}) + "\n"
+    
+    return stream_generator()
 
