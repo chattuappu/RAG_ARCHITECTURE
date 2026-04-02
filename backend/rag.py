@@ -102,10 +102,18 @@ def query_rag(query_text, first_query=False):
                 # Continue with query even if ingestion fails
         
         db = get_chroma_db()
-        retriever = db.as_retriever(search_kwargs={"k": 2})
         
-        # Retrieve documents for sources
-        source_docs = retriever.invoke(query_text)
+        # Retrieve docs with distance scores (Chroma returns L2 distance by default, smaller is more similar)
+        docs_and_scores = db.similarity_search_with_score(query_text, k=2)
+        
+        best_distance = min([score for doc, score in docs_and_scores]) if docs_and_scores else float('inf')
+        
+        # If the closest document has a distance > 1.2, consider it irrelevant
+        if best_distance > 1.2:
+            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            return "I am a HR Policy Chatbot, please ask relevant question regarding policies", [], timestamp
+        
+        source_docs = [doc for doc, score in docs_and_scores]
         sources = {
             normalize_source(doc.metadata.get("source", "Unknown Source"))
             for doc in source_docs
@@ -157,9 +165,21 @@ def stream_rag(query_text, first_query=False):
                     # Continue with query even if ingestion fails
 
             db = get_chroma_db()
-            retriever = db.as_retriever(search_kwargs={"k": 2})
+            
+            # Retrieve docs with distance scores
+            docs_and_scores = db.similarity_search_with_score(query_text, k=2)
+            
+            best_distance = min([score for doc, score in docs_and_scores]) if docs_and_scores else float('inf')
+            
+            # If the closest document has a distance > 1.2, consider it irrelevant
+            if best_distance > 1.2:
+                irrelevant_message = "I am a HR Policy Chatbot, please ask relevant question regarding policies"
+                yield json.dumps({"type": "token", "text": irrelevant_message}) + "\n"
+                timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                yield json.dumps({"type": "done", "sources": [], "timestamp": timestamp}) + "\n"
+                return
 
-            source_docs = retriever.invoke(query_text)
+            source_docs = [doc for doc, score in docs_and_scores]
             sources = {
                 normalize_source(doc.metadata.get("source", "Unknown Source"))
                 for doc in source_docs
