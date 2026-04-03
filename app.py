@@ -9,6 +9,11 @@ import base64
 import mimetypes
 from fastapi import Query
 from backend.gcs_manager import get_gcs_file_in_memory
+import io
+try:
+    import fitz
+except ImportError:
+    fitz = None
 
 # We must import validate_config to ensure environment is setup, but we do it gracefully
 try:
@@ -97,7 +102,7 @@ async def chat_stream_endpoint(request: ChatRequest):
         return StreamingResponse(error_response(), media_type="text/event-stream")
 
 @app.get("/api/document")
-async def serve_document(c: str = Query(...)):
+async def serve_document(c: str = Query(...), search: str = Query(None)):
     try:
         file_path = base64.b64decode(c).decode('utf-8')
         file_stream = get_gcs_file_in_memory(file_path)
@@ -107,12 +112,49 @@ async def serve_document(c: str = Query(...)):
         if not mime_type:
             mime_type = "application/octet-stream"
             
-        file_stream.seek(0)
+        file_bytes = file_stream.read()
+        
+        # Add yellow highlight using PyMuPDF if it's a PDF and search phrase is provided
+        if file_path.lower().endswith(".pdf") and search and fitz:
+            try:
+                search_phrase_full = base64.b64decode(search).decode('utf-8')
+                doc = fitz.open(stream=file_bytes, filetype="pdf")
+                
+                words = search_phrase_full.split()
+                
+                # Create overlapping 5-word rolling n-grams. This aggressively paints the chunk yellow and natively bypasses
+                # any hyphens or line mismatches between PyPDF2 text extraction and PyMuPDF's spatial search engine
+                phrases = []
+                for i in range(len(words) - 4):
+                    phrases.append(" ".join(words[i:i+5]))
+                    
+                if not phrases and words:
+                    phrases.append(" ".join(words))
+                
+                for page in doc:
+                    for phrase in phrases:
+                        text_instances = page.search_for(phrase)
+                        if text_instances:
+                            for inst in text_instances:
+                                annot = page.add_highlight_annot(inst)
+                                annot.update()
+                
+                # Update file bytes with modified PDF
+                file_bytes = doc.tobytes()
+                doc.close()
+            except Exception as e:
+                print(f"Error highlighting PDF: {e}")
+                
+        output_stream = io.BytesIO(file_bytes)
+        output_stream.seek(0)
         
         return StreamingResponse(
-            file_stream, 
+            output_stream, 
             media_type=mime_type, 
-            headers={"Content-Disposition": f"inline; filename=\"{os.path.basename(file_path)}\""}
+            headers={
+                "Content-Disposition": f"inline; filename=\"{os.path.basename(file_path)}\"",
+                "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0"
+            }
         )
     except Exception as e:
         print(f"Error serving document: {e}")

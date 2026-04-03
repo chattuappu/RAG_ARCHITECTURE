@@ -44,22 +44,41 @@ def get_ui_sources(source_docs):
         if not raw_source:
              continue
              
+            
         # Unique identifier for the source item
         key = f"{raw_source}_{page}"
-        if key not in unique_sources:
+        if key in unique_sources:
+            unique_sources[key]["chunks"].append(doc.page_content.strip())
+        else:
             base_name = os.path.basename(raw_source.rstrip("/")) or raw_source
             display_name = f"{base_name} [{page}]" if page else base_name
-            # Encode file path to obscure the real structure
             encoded_file = base64.b64encode(raw_source.encode('utf-8')).decode('utf-8')
-            url = f"/api/document?c={encoded_file}"
-            if page:
-                url += f"#page={page}"
+            
             unique_sources[key] = {
                 "name": display_name,
-                "url": url
+                "encoded_file": encoded_file,
+                "page": page,
+                "chunks": [doc.page_content.strip()]
             }
             
-    return list(unique_sources.values())
+    results = []
+    for val in unique_sources.values():
+        url = f"/api/document?c={val['encoded_file']}"
+        # Combine all matched chunks from the same page into a single robust search payload
+        search_phrase = " ".join(val["chunks"])
+        search_b64 = base64.b64encode(search_phrase.encode('utf-8')).decode('utf-8')
+        search_b64 = urllib.parse.quote_plus(search_b64)
+        url += f"&search={search_b64}"
+        
+        if val["page"]:
+            url += f"#page={val['page']}"
+            
+        results.append({
+            "name": val["name"],
+            "url": url
+        })
+            
+    return results
 
 def get_llm():
     return ChatOpenAI(
@@ -125,7 +144,7 @@ def query_rag(query_text, first_query=False):
         db = get_chroma_db()
         
         # Retrieve docs with distance scores (Chroma returns L2 distance by default, smaller is more similar)
-        docs_and_scores = db.similarity_search_with_score(query_text, k=2)
+        docs_and_scores = db.similarity_search_with_score(query_text, k=5)
         
         best_distance = min([score for doc, score in docs_and_scores]) if docs_and_scores else float('inf')
         
@@ -185,7 +204,7 @@ def stream_rag(query_text, first_query=False):
             db = get_chroma_db()
             
             # Retrieve docs with distance scores
-            docs_and_scores = db.similarity_search_with_score(query_text, k=2)
+            docs_and_scores = db.similarity_search_with_score(query_text, k=5)
             
             best_distance = min([score for doc, score in docs_and_scores]) if docs_and_scores else float('inf')
             

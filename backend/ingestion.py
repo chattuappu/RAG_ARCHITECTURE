@@ -84,8 +84,8 @@ def ingest_new_documents():
         print("No valid text extracted from new documents.")
         return False
         
-    print("Chunking documents...")
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    print("Chunking documents into smaller precise blocks...")
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=250, chunk_overlap=50)
     split_docs = text_splitter.split_documents(docs_to_embed)
     
     print(f"Storing {len(split_docs)} chunks into ChromaDB...")

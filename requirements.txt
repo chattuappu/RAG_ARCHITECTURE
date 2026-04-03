@@ -11,3 +11,4 @@ python-dotenv==1.0.1
 PyPDF2
 sentence-transformers
 langchain-huggingface
+PyMuPDF
